@@ -1,4 +1,5 @@
 build/
 managed_components/
+main/golioth_credentials.cpp
 sdkconfig
 sdkconfig.old

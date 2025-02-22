@@ -10,13 +10,16 @@ extern "C"{
     #include "esp_log.h"
     #include "nvs_flash.h"
     #include "lwip/err.h"
-    #include "lwip/sys.h"    
+    #include "lwip/sys.h"  
+    #include <golioth/client.h>  
 }
  
-
 #define esp_wifi_ssid      "redmi-black"
 #define esp_wifi_password      "77777777"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  0
+
+extern const char* psk_id;
+extern const char* psk;
 
 #if CONFIG_ESP_WPA3_SAE_PWE_HUNT_AND_PECK
 #define ESP_WIFI_SAE_MODE WPA3_SAE_PWE_HUNT_AND_PECK
@@ -163,4 +166,22 @@ extern "C" void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
+
+    const struct golioth_client_config config = {
+        .credentials = {
+        .auth_type = GOLIOTH_TLS_AUTH_TYPE_PSK,
+        .psk = {
+            .psk_id = psk_id,
+            .psk_id_len = strlen(psk_id),
+            .psk = psk,
+            .psk_len = strlen(psk),
+    }}};
+    struct golioth_client *client = golioth_client_create(&config);
+    assert(client);
+    uint16_t counter = 0;
+    while(1) {
+        GLTH_LOGI(TAG, "Hello, Golioth! #%d", counter);
+        ++counter;
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
 }

@@ -7,3 +7,6 @@
 [submodule "components/Adafruit-Fingerprint-Sensor-Library"]
 	path = components/Adafruit-Fingerprint-Sensor-Library
 	url = https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library.git
+[submodule "submodules/golioth-firmware-sdk"]
+	path = submodules/golioth-firmware-sdk
+	url = https://github.com/golioth/golioth-firmware-sdk.git

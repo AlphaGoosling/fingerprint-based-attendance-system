@@ -7,7 +7,10 @@
     "idf.port": "/dev/ttyUSB0",
     "idf.toolsPath": "/home/mn/.espressif",
     "files.associations": {
-        "esp_system.h": "c"
+        "esp_system.h": "c",
+        "stop_token": "cpp",
+        "tuple": "cpp",
+        "cstdio": "cpp"
     },
     "idf.flashType": "UART"
 }

@@ -1,6 +1,10 @@
 #include "Arduino.h"
+#include "Adafruit_Fingerprint.h"
+#include "TFT_eSPI.h"
+
 extern "C"{
     #include <string.h>
+    #include <stdio.h>
     #include "freertos/FreeRTOS.h"
     #include "freertos/task.h"
     #include "freertos/event_groups.h"
@@ -13,6 +17,14 @@ extern "C"{
     #include "lwip/sys.h"  
     #include <golioth/client.h>  
 }
+
+TaskHandle_t FingerprintScannerTaskHandler = NULL;
+TaskHandle_t DisplayTaskHandler = NULL;
+TaskHandle_t GoliothTaskHandler = NULL;
+
+void Fingerprint_Scanner_Task(void *arg);
+void Display_Task(void *arg);
+void Golioth_Task(void *arg);
  
 #define esp_wifi_ssid      "redmi-black"
 #define esp_wifi_password      "77777777"
@@ -167,6 +179,26 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
+    xTaskCreate(Fingerprint_Scanner_Task, "Fingerprint Scanner", 4096, NULL, 3, &FingerprintScannerTaskHandler);
+    xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
+    xTaskCreate(Golioth_Task, "Golioth", 4096, NULL, 3, &GoliothTaskHandler);
+}
+void Fingerprint_Scanner_Task(void *arg)
+{
+    while(1){
+        printf("Task running: Fingerprint Scanner Task .. \n");
+        vTaskDelay(3000 / portTICK_PERIOD_MS);
+    }
+}
+void Display_Task(void *arg)
+{
+    while(1){
+        printf("Task running: Display Task .. \n");
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
+void Golioth_Task(void *arg)
+{
     const struct golioth_client_config config = {
         .credentials = {
         .auth_type = GOLIOTH_TLS_AUTH_TYPE_PSK,
@@ -185,3 +217,4 @@ extern "C" void app_main(void)
         vTaskDelay(5000 / portTICK_PERIOD_MS);
     }
 }
+ 

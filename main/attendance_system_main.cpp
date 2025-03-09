@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "Adafruit_Fingerprint.h"
 #include "TFT_eSPI.h"
+#include "FS.h"
 
 extern "C"{
     #include <string.h>
@@ -26,8 +27,7 @@ void Fingerprint_Scanner_Task(void *arg);
 void Display_Task(void *arg);
 void Golioth_Task(void *arg);
 
-#define BLACK 0x0000
-#define WHITE 0xFFFF
+#define CALIBRATION_FILE "/calibrationData"
  
 #define esp_wifi_ssid      "redmi-black"
 #define esp_wifi_password      "77777777"
@@ -170,282 +170,6 @@ extern "C" void wifi_init_sta(void)
 
 TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 
-int16_t h;
-int16_t w;
-
-int inc = -2;
-
-float xx, xy, xz;
-float yx, yy, yz;
-float zx, zy, zz;
-
-float fact;
-
-int Xan, Yan;
-
-int Xoff;
-int Yoff;
-int Zoff;
-
-struct Point3d
-{
-  int x;
-  int y;
-  int z;
-};
-
-struct Point2d
-{
-  int x;
-  int y;
-};
-
-int LinestoRender; // lines to render.
-int OldLinestoRender; // lines to render just in case it changes. this makes sure the old lines all get erased.
-
-struct Line3d
-{
-  Point3d p0;
-  Point3d p1;
-};
-
-struct Line2d
-{
-  Point2d p0;
-  Point2d p1;
-};
-
-Line3d Lines[20];
-Line2d Render[20];
-Line2d ORender[20];
-
-void RenderImage( void)
-{
-  // renders all the lines after erasing the old ones.
-  // in here is the only code actually interfacing with the OLED. so if you use a different lib, this is where to change it.
-
-  for (int i = 0; i < OldLinestoRender; i++ )
-  {
-    tft.drawLine(ORender[i].p0.x, ORender[i].p0.y, ORender[i].p1.x, ORender[i].p1.y, BLACK); // erase the old lines.
-  }
-
-
-  for (int i = 0; i < LinestoRender; i++ )
-  {
-    uint16_t color = TFT_BLUE;
-    if (i < 4) color = TFT_RED;
-    if (i > 7) color = TFT_GREEN;
-    tft.drawLine(Render[i].p0.x, Render[i].p0.y, Render[i].p1.x, Render[i].p1.y, color);
-  }
-  OldLinestoRender = LinestoRender;
-}
-
-/***********************************************************************************************************************************/
-// Sets the global vars for the 3d transform. Any points sent through "process" will be transformed using these figures.
-// only needs to be called if Xan or Yan are changed.
-void SetVars(void)
-{
-  float Xan2, Yan2, Zan2;
-  float s1, s2, s3, c1, c2, c3;
-
-  Xan2 = Xan / fact; // convert degrees to radians.
-  Yan2 = Yan / fact;
-
-  // Zan is assumed to be zero
-
-  s1 = sin(Yan2);
-  s2 = sin(Xan2);
-
-  c1 = cos(Yan2);
-  c2 = cos(Xan2);
-
-  xx = c1;
-  xy = 0;
-  xz = -s1;
-
-  yx = (s1 * s2);
-  yy = c2;
-  yz = (c1 * s2);
-
-  zx = (s1 * c2);
-  zy = -s2;
-  zz = (c1 * c2);
-}
-
-
-/***********************************************************************************************************************************/
-// processes x1,y1,z1 and returns rx1,ry1 transformed by the variables set in SetVars()
-// fairly heavy on floating point here.
-// uses a bunch of global vars. Could be rewritten with a struct but not worth the effort.
-void ProcessLine(struct Line2d *ret, struct Line3d vec)
-{
-  float zvt1;
-  int xv1, yv1, zv1;
-
-  float zvt2;
-  int xv2, yv2, zv2;
-
-  int rx1, ry1;
-  int rx2, ry2;
-
-  int x1;
-  int y1;
-  int z1;
-
-  int x2;
-  int y2;
-  int z2;
-
-  int Ok;
-
-  x1 = vec.p0.x;
-  y1 = vec.p0.y;
-  z1 = vec.p0.z;
-
-  x2 = vec.p1.x;
-  y2 = vec.p1.y;
-  z2 = vec.p1.z;
-
-  Ok = 0; // defaults to not OK
-
-  xv1 = (x1 * xx) + (y1 * xy) + (z1 * xz);
-  yv1 = (x1 * yx) + (y1 * yy) + (z1 * yz);
-  zv1 = (x1 * zx) + (y1 * zy) + (z1 * zz);
-
-  zvt1 = zv1 - Zoff;
-
-  if ( zvt1 < -5) {
-    rx1 = 256 * (xv1 / zvt1) + Xoff;
-    ry1 = 256 * (yv1 / zvt1) + Yoff;
-    Ok = 1; // ok we are alright for point 1.
-  }
-
-  xv2 = (x2 * xx) + (y2 * xy) + (z2 * xz);
-  yv2 = (x2 * yx) + (y2 * yy) + (z2 * yz);
-  zv2 = (x2 * zx) + (y2 * zy) + (z2 * zz);
-
-  zvt2 = zv2 - Zoff;
-
-  if ( zvt2 < -5) {
-    rx2 = 256 * (xv2 / zvt2) + Xoff;
-    ry2 = 256 * (yv2 / zvt2) + Yoff;
-  } else
-  {
-    Ok = 0;
-  }
-
-  if (Ok == 1) {
-
-    ret->p0.x = rx1;
-    ret->p0.y = ry1;
-
-    ret->p1.x = rx2;
-    ret->p1.y = ry2;
-  }
-  // The ifs here are checks for out of bounds. needs a bit more code here to "safe" lines that will be way out of whack, so they don't get drawn and cause screen garbage.
-
-}
-
-/***********************************************************************************************************************************/
-// line segments to draw a cube. basically p0 to p1. p1 to p2. p2 to p3 so on.
-void cube(void)
-{
-  // Front Face.
-
-  Lines[0].p0.x = -50;
-  Lines[0].p0.y = -50;
-  Lines[0].p0.z = 50;
-  Lines[0].p1.x = 50;
-  Lines[0].p1.y = -50;
-  Lines[0].p1.z = 50;
-
-  Lines[1].p0.x = 50;
-  Lines[1].p0.y = -50;
-  Lines[1].p0.z = 50;
-  Lines[1].p1.x = 50;
-  Lines[1].p1.y = 50;
-  Lines[1].p1.z = 50;
-
-  Lines[2].p0.x = 50;
-  Lines[2].p0.y = 50;
-  Lines[2].p0.z = 50;
-  Lines[2].p1.x = -50;
-  Lines[2].p1.y = 50;
-  Lines[2].p1.z = 50;
-
-  Lines[3].p0.x = -50;
-  Lines[3].p0.y = 50;
-  Lines[3].p0.z = 50;
-  Lines[3].p1.x = -50;
-  Lines[3].p1.y = -50;
-  Lines[3].p1.z = 50;
-
-
-  //back face.
-
-  Lines[4].p0.x = -50;
-  Lines[4].p0.y = -50;
-  Lines[4].p0.z = -50;
-  Lines[4].p1.x = 50;
-  Lines[4].p1.y = -50;
-  Lines[4].p1.z = -50;
-
-  Lines[5].p0.x = 50;
-  Lines[5].p0.y = -50;
-  Lines[5].p0.z = -50;
-  Lines[5].p1.x = 50;
-  Lines[5].p1.y = 50;
-  Lines[5].p1.z = -50;
-
-  Lines[6].p0.x = 50;
-  Lines[6].p0.y = 50;
-  Lines[6].p0.z = -50;
-  Lines[6].p1.x = -50;
-  Lines[6].p1.y = 50;
-  Lines[6].p1.z = -50;
-
-  Lines[7].p0.x = -50;
-  Lines[7].p0.y = 50;
-  Lines[7].p0.z = -50;
-  Lines[7].p1.x = -50;
-  Lines[7].p1.y = -50;
-  Lines[7].p1.z = -50;
-
-
-  // now the 4 edge lines.
-
-  Lines[8].p0.x = -50;
-  Lines[8].p0.y = -50;
-  Lines[8].p0.z = 50;
-  Lines[8].p1.x = -50;
-  Lines[8].p1.y = -50;
-  Lines[8].p1.z = -50;
-
-  Lines[9].p0.x = 50;
-  Lines[9].p0.y = -50;
-  Lines[9].p0.z = 50;
-  Lines[9].p1.x = 50;
-  Lines[9].p1.y = -50;
-  Lines[9].p1.z = -50;
-
-  Lines[10].p0.x = -50;
-  Lines[10].p0.y = 50;
-  Lines[10].p0.z = 50;
-  Lines[10].p1.x = -50;
-  Lines[10].p1.y = 50;
-  Lines[10].p1.z = -50;
-
-  Lines[11].p0.x = 50;
-  Lines[11].p0.y = 50;
-  Lines[11].p0.z = 50;
-  Lines[11].p1.x = 50;
-  Lines[11].p1.y = 50;
-  Lines[11].p1.z = -50;
-
-  LinestoRender = 12;
-  OldLinestoRender = LinestoRender;
-
-}
 
 extern "C" void app_main(void)
 {
@@ -460,62 +184,202 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
+    Serial.begin(115200);
     xTaskCreate(Fingerprint_Scanner_Task, "Fingerprint Scanner", 4096, NULL, 3, &FingerprintScannerTaskHandler);
     xTaskCreate(Display_Task, "Display", 4096, NULL, 3, &DisplayTaskHandler);
     xTaskCreate(Golioth_Task, "Golioth", 4096, NULL, 3, &GoliothTaskHandler);
 }
+
+HardwareSerial fingerprintSerial(2);
+
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerprintSerial);
+
+uint8_t getFingerprintID() {
+  uint8_t p = finger.getImage();
+  switch (p) {
+    case FINGERPRINT_OK:
+      Serial.println("Image taken");
+      break;
+    case FINGERPRINT_NOFINGER:
+      Serial.println("No finger detected");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      Serial.println("Communication error");
+      return p;
+    case FINGERPRINT_IMAGEFAIL:
+      Serial.println("Imaging error");
+      return p;
+    default:
+      Serial.println("Unknown error");
+      return p;
+  }
+
+  // OK success!
+
+  p = finger.image2Tz();
+  switch (p) {
+    case FINGERPRINT_OK:
+      Serial.println("Image converted");
+      break;
+    case FINGERPRINT_IMAGEMESS:
+      Serial.println("Image too messy");
+      return p;
+    case FINGERPRINT_PACKETRECIEVEERR:
+      Serial.println("Communication error");
+      return p;
+    case FINGERPRINT_FEATUREFAIL:
+      Serial.println("Could not find fingerprint features");
+      return p;
+    case FINGERPRINT_INVALIDIMAGE:
+      Serial.println("Could not find fingerprint features");
+      return p;
+    default:
+      Serial.println("Unknown error");
+      return p;
+  }
+
+  // OK converted!
+  p = finger.fingerSearch();
+  if (p == FINGERPRINT_OK) {
+    Serial.println("Found a print match!");
+  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
+    Serial.println("Communication error");
+    return p;
+  } else if (p == FINGERPRINT_NOTFOUND) {
+    Serial.println("Did not find a match");
+    return p;
+  } else {
+    Serial.println("Unknown error");
+    return p;
+  }
+
+  // found a match!
+  Serial.print("Found ID #"); Serial.print(finger.fingerID);
+  Serial.print(" with confidence of "); Serial.println(finger.confidence);
+
+  return finger.fingerID;
+}
+
+// returns -1 if failed, otherwise returns ID #
+int getFingerprintIDez() {
+  uint8_t p = finger.getImage();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.fingerFastSearch();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  // found a match!
+  Serial.print("Found ID #"); Serial.print(finger.fingerID);
+  Serial.print(" with confidence of "); Serial.println(finger.confidence);
+  return finger.fingerID;
+}
+
 void Fingerprint_Scanner_Task(void *arg)
 {
-    while(1){
-        printf("Task running: Fingerprint Scanner Task .. \n");
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
-    }
+  printf("Task running: Fingerprint Scanner Task .. \n");
+  fingerprintSerial.begin(115200, SERIAL_8N1, 16, 17);
+  Serial.println("\n\nAdafruit finger detect test");
+  finger.begin(57600);
+  vTaskDelay(10 / portTICK_PERIOD_MS); 
+  if (finger.verifyPassword()) {
+    Serial.println("Found fingerprint sensor!");
+  } else {
+    Serial.println("Did not find fingerprint sensor :(");
+    while (1) { vTaskDelay(1 / portTICK_PERIOD_MS); }
+  }
+
+  Serial.println(F("Reading sensor parameters"));
+  finger.getParameters();
+  Serial.print(F("Status: 0x")); Serial.println(finger.status_reg, HEX);
+  Serial.print(F("Sys ID: 0x")); Serial.println(finger.system_id, HEX);
+  Serial.print(F("Capacity: ")); Serial.println(finger.capacity);
+  Serial.print(F("Security level: ")); Serial.println(finger.security_level);
+  Serial.print(F("Device address: ")); Serial.println(finger.device_addr, HEX);
+  Serial.print(F("Packet len: ")); Serial.println(finger.packet_len);
+  Serial.print(F("Baud rate: ")); Serial.println(finger.baud_rate);
+
+  finger.getTemplateCount();
+
+  if (finger.templateCount == 0) {
+    Serial.print("Sensor doesn't contain any fingerprint data. Please run the 'enroll' example.");
+  }
+  else {
+    Serial.println("Waiting for valid finger...");
+    Serial.print("Sensor contains "); Serial.print(finger.templateCount); Serial.println(" templates");
+  } 
+
+  while(1){
+    getFingerprintID();
+    vTaskDelay(50 / portTICK_PERIOD_MS);
+  }
 }
 void Display_Task(void *arg)
 {
-    printf("Task running: Display Task .. \n");
-    tft.init();
+  uint16_t calibrationData[5];
+  uint8_t calDataOK = 0;
 
-    h = tft.height();
-    w = tft.width();
+  Serial.println("starting");
 
-    tft.setRotation(1);
+  tft.init();
 
-    tft.fillScreen(TFT_BLACK);
+  tft.setRotation(3);
+  tft.fillScreen((0xFFFF));
 
-    cube();
+  tft.setCursor(20, 0, 2);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);  tft.setTextSize(1);
+  tft.println("calibration run");
 
-    fact = 180 / 3.14159259; // conversion from degrees to radians.
+  // check file system
+  if (!SPIFFS.begin()) {
+    Serial.println("formatting file system");
 
-    Xoff = 240; // Position the centre of the 3d conversion space into the centre of the TFT screen.
-    Yoff = 160;
-    Zoff = 550;
+    SPIFFS.format();
+    SPIFFS.begin();
+  }
 
-    while(1){
-
-        // Rotate around x and y axes in 1 degree increments
-        Xan++;
-        Yan++;
-
-        Yan = Yan % 360;
-        Xan = Xan % 360; // prevents overflow.
-
-        SetVars(); //sets up the global vars to do the 3D conversion.
-
-        // Zoom in and out on Z axis within limits
-        // the cube intersects with the screen for values < 160
-        Zoff += inc; 
-        if (Zoff > 500) inc = -1;     // Switch to zoom in
-        else if (Zoff < 160) inc = 1; // Switch to zoom out
-
-        for (int i = 0; i < LinestoRender ; i++)
-        {
-            ORender[i] = Render[i]; // stores the old line segment so we can delete it later.
-            ProcessLine(&Render[i], Lines[i]); // converts the 3d line segments to 2d.
-        }
-        RenderImage(); // go draw it!
-        vTaskDelay(14); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
+   // check if calibration file exists
+  if (SPIFFS.exists(CALIBRATION_FILE)) {
+    fs::File f = SPIFFS.open(CALIBRATION_FILE, "r");
+    if (f) {
+      if (f.readBytes((char *)calibrationData, 14) == 14)
+        calDataOK = 1;
+      f.close();
     }
+  }
+  if (calDataOK) {
+    // calibration data valid
+    tft.setTouch(calibrationData);
+  } else {
+    // data not valid. recalibrate
+    tft.calibrateTouch(calibrationData, TFT_WHITE, TFT_RED, 15);
+    // store data
+    fs::File f = SPIFFS.open(CALIBRATION_FILE, "w");
+    if (f) {
+      f.write((const unsigned char *)calibrationData, 14);
+      f.close();
+    }
+  }
+
+  tft.fillScreen((0xFFFF));
+
+  while(1){
+    uint16_t x, y;
+    static uint16_t color;
+
+    if (tft.getTouch(&x, &y)) {
+
+      tft.setCursor(5, 5, 2);
+      tft.printf("x: %i     ", x);
+      tft.setCursor(5, 20, 2);
+      tft.printf("y: %i    ", y);
+
+      tft.drawPixel(x, y, color);
+      color += 155;
+    }
+  } 
 }
 void Golioth_Task(void *arg)
 {

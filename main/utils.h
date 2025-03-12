@@ -39,10 +39,10 @@ uint8_t id;
 
 uint8_t getFingerprintID();
 int     getFingerprintIDez();
-uint8_t deleteFingerprint(uint8_t id);
-uint8_t readnumber(void);
-uint8_t getFingerprintEnroll();
-uint8_t downloadFingerprintTemplate(uint16_t id);
-void    printHex(int num, int precision);
+//uint8_t deleteFingerprint(uint8_t id);
+//uint8_t readnumber(void);
+//uint8_t getFingerprintEnroll();
+//uint8_t downloadFingerprintTemplate(uint16_t id);
+//void    printHex(int num, int precision);
 
 #endif 

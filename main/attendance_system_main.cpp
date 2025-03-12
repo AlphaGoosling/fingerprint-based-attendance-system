@@ -13,6 +13,8 @@ TFT_eSPI tft = TFT_eSPI();       // Invoke custom library
 
 HardwareSerial fingerprintSerial(2);
 
+
+
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fingerprintSerial);
 
 

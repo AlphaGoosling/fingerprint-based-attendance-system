@@ -33,14 +33,12 @@ extern const char* psk;
 
 extern "C" void wifi_init_sta(void);
 
-uint8_t id;
-
 uint8_t getFingerprintID();
 int     getFingerprintIDez();
-uint8_t deleteFingerprint(uint8_t id);
+uint8_t deleteFingerprint(uint8_t fingerprint_id);
 uint8_t readnumber(void);
 uint8_t getFingerprintEnroll();
-uint8_t downloadFingerprintTemplate(uint16_t id);
+uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id);
 void    printHex(int num, int precision);
 
 #endif 

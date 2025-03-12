@@ -146,6 +146,10 @@ extern "C" void wifi_init_sta(void)
 
 extern Adafruit_Fingerprint finger;
 
+uint8_t fingerprint_id;
+
+extern HardwareSerial fingerprintSerial;
+
 uint8_t getFingerprintID() {
   uint8_t p = finger.getImage();
   switch (p) {
@@ -228,12 +232,12 @@ int getFingerprintIDez() {
   Serial.print(" with confidence of "); Serial.println(finger.confidence);
   return finger.fingerID;
 }
-/*
 
-uint8_t deleteFingerprint(uint8_t id) {
+
+uint8_t deleteFingerprint(uint8_t fingerprint_id) {
   uint8_t p = -1;
 
-  p = finger.deleteModel(id);
+  p = finger.deleteModel(fingerprint_id);
 
   if (p == FINGERPRINT_OK) {
     Serial.println("Deleted!");
@@ -263,7 +267,7 @@ uint8_t readnumber(void) {
 uint8_t getFingerprintEnroll() {
 
   int p = -1;
-  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(id);
+  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(fingerprint_id);
   while (p != FINGERPRINT_OK) {
     p = finger.getImage();
     switch (p) {
@@ -315,7 +319,7 @@ uint8_t getFingerprintEnroll() {
   while (p != FINGERPRINT_NOFINGER) {
     p = finger.getImage();
   }
-  Serial.print("ID "); Serial.println(id);
+  Serial.print("ID "); Serial.println(fingerprint_id);
   p = -1;
   Serial.println("Place same finger again");
   while (p != FINGERPRINT_OK) {
@@ -364,7 +368,7 @@ uint8_t getFingerprintEnroll() {
   }
 
   // OK converted!
-  Serial.print("Creating model for #");  Serial.println(id);
+  Serial.print("Creating model for #");  Serial.println(fingerprint_id);
 
   p = finger.createModel();
   if (p == FINGERPRINT_OK) {
@@ -380,8 +384,8 @@ uint8_t getFingerprintEnroll() {
     return p;
   }
 
-  Serial.print("ID "); Serial.println(id);
-  p = finger.storeModel(id);
+  Serial.print("ID "); Serial.println(fingerprint_id);
+  p = finger.storeModel(fingerprint_id);
   if (p == FINGERPRINT_OK) {
     Serial.println("Stored!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
@@ -401,14 +405,14 @@ uint8_t getFingerprintEnroll() {
   return true;
 }
 
-uint8_t downloadFingerprintTemplate(uint16_t id)
+uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id)
 {
   Serial.println("------------------------------------");
-  Serial.print("Attempting to load #"); Serial.println(id);
-  uint8_t p = finger.loadModel(id);
+  Serial.print("Attempting to load #"); Serial.println(fingerprint_id);
+  uint8_t p = finger.loadModel(fingerprint_id);
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" loaded");
+      Serial.print("Template "); Serial.print(fingerprint_id); Serial.println(" loaded");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
@@ -420,11 +424,11 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
 
   // OK success!
 
-  Serial.print("Attempting to get #"); Serial.println(id);
+  Serial.print("Attempting to get #"); Serial.println(fingerprint_id);
   p = finger.getModel();
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(id); Serial.println(" transferring:");
+      Serial.print("Template "); Serial.print(fingerprint_id); Serial.println(" transferring:");
       break;
     default:
       Serial.print("Unknown error "); Serial.println(p);
@@ -469,8 +473,8 @@ uint8_t downloadFingerprintTemplate(uint16_t id)
   
     uint8_t templateBuffer[256];
     memset(templateBuffer, 0xff, 256);  //zero out template buffer
-    int index=0;
-    uint32_t starttime = millis();
+    index = 0;
+    starttime = millis();
     while ((index < 256) && ((millis() - starttime) < 1000))
     {
     if (fingerprintSerial.available())
@@ -503,4 +507,4 @@ void printHex(int num, int precision) {
 
   sprintf(tmp, format, num);
   Serial.print(tmp);
-}*/
+}

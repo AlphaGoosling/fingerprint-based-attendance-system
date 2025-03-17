@@ -10,7 +10,12 @@
         "esp_system.h": "c",
         "stop_token": "cpp",
         "tuple": "cpp",
-        "cstdio": "cpp"
+        "cstdio": "cpp",
+        "cstring": "cpp",
+        "variant": "cpp",
+        "*.inc": "cpp",
+        "ostream": "cpp",
+        "cstdint": "cpp"
     },
     "idf.flashType": "UART"
 }

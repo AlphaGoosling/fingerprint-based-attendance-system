@@ -10,3 +10,6 @@
 [submodule "submodules/golioth-firmware-sdk"]
 	path = submodules/golioth-firmware-sdk
 	url = https://github.com/golioth/golioth-firmware-sdk.git
+[submodule "TFT_eWidget"]
+	path = TFT_eWidget
+	url = https://github.com/Bodmer/TFT_eWidget.git

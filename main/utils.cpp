@@ -1,4 +1,6 @@
 #include "utils.h"
+uint8_t onScreen; //stores state of what is on screen. 0 -> main menu, 1 -> keypad
+
 /********************************************************************************************************************************************
                                                          WIFI UTILITY FUNCTIONS               
 *********************************************************************************************************************************************/ 
@@ -48,95 +50,84 @@ static int s_retry_num = 0;
 
 static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "retry to connect to the AP");
-
-        } else {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
-        }
-        ESP_LOGI(TAG,"connect to the AP fail");
-
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+  if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+    esp_wifi_connect();
+  } 
+  else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+    if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
+      esp_wifi_connect();
+      s_retry_num++;
+      ESP_LOGI(TAG, "retry to connect to the AP");
+    } 
+    else {
+      xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+    }
+    ESP_LOGI(TAG,"connect to the AP fail");
+  } 
+  else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+      ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+      ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+      s_retry_num = 0;
+      xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 
-
-//extern HardwareSerial fingerprintSerial;
-
 extern "C" void wifi_init_sta(void)
 {
-    s_wifi_event_group = xEventGroupCreate();
+  s_wifi_event_group = xEventGroupCreate();
 
-    ESP_ERROR_CHECK(esp_netif_init());
+  ESP_ERROR_CHECK(esp_netif_init());
 
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
+  esp_netif_create_default_wifi_sta();
 
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+  wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+  ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-    esp_event_handler_instance_t instance_any_id;
-    esp_event_handler_instance_t instance_got_ip;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &event_handler,
-                                                        NULL,
-                                                        &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_STA_GOT_IP,
-                                                        &event_handler,
-                                                        NULL,
-                                                        &instance_got_ip));
+  esp_event_handler_instance_t instance_any_id;
+  esp_event_handler_instance_t instance_got_ip;
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, &instance_any_id));
+  ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &instance_got_ip));
 
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = esp_wifi_ssid,
-            .password = esp_wifi_password,
-            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
-             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
-             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
-             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
-             */
-            .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
-            .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
-            .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
+  wifi_config_t wifi_config = {
+    .sta = {
+      .ssid = esp_wifi_ssid,
+      .password = esp_wifi_password,
+      /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+        * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+        * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+        * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+        */
+      .threshold = {.rssi = -90, .authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD, .rssi_5g_adjustment = 20},
+      .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
+      .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
+    },
+  };
+  ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+  ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+  ESP_ERROR_CHECK(esp_wifi_start() );
 
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
+  ESP_LOGI(TAG, "wifi_init_sta finished.");
 
-    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-            pdFALSE,
-            pdFALSE,
-            portMAX_DELAY);
+  /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+    * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+  EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+          WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+          pdFALSE,
+          pdFALSE,
+          portMAX_DELAY);
 
-    /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-     * happened. */
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 esp_wifi_ssid, esp_wifi_password);
-    } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 esp_wifi_ssid, esp_wifi_password);
-    } else {
-        ESP_LOGI(TAG, "UNEXPECTED EVENT");
-    }
+  /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+    * happened. */
+  if (bits & WIFI_CONNECTED_BIT) {
+      ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+                esp_wifi_ssid, esp_wifi_password);
+  } else if (bits & WIFI_FAIL_BIT) {
+      ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+                esp_wifi_ssid, esp_wifi_password);
+  } else {
+      ESP_LOGI(TAG, "UNEXPECTED EVENT");
+  }
 }
 
 
@@ -146,12 +137,14 @@ extern "C" void wifi_init_sta(void)
 
 extern Adafruit_Fingerprint finger;
 
-uint8_t fingerprint_id;
-
 extern HardwareSerial fingerprintSerial;
 
 uint8_t getFingerprintID() {
   uint8_t p = finger.getImage();
+  while (p == FINGERPRINT_NOFINGER) {
+    p = finger.getImage();
+    vTaskDelay(20);
+  }
   switch (p) {
     case FINGERPRINT_OK:
       Serial.println("Image taken");
@@ -234,10 +227,10 @@ int getFingerprintIDez() {
 }
 
 
-uint8_t deleteFingerprint(uint8_t fingerprint_id) {
+uint8_t deleteFingerprint(uint8_t fingerprintID) {
   uint8_t p = -1;
 
-  p = finger.deleteModel(fingerprint_id);
+  p = finger.deleteModel(fingerprintID);
 
   if (p == FINGERPRINT_OK) {
     Serial.println("Deleted!");
@@ -264,12 +257,13 @@ uint8_t readnumber(void) {
   return num;
 }
 
-uint8_t getFingerprintEnroll() {
+uint8_t getFingerprintEnroll(uint8_t fingerprintID) {
 
   int p = -1;
-  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(fingerprint_id);
-  while (p != FINGERPRINT_OK) {
+  Serial.print("Waiting for valid finger to enroll as #"); Serial.println(fingerprintID);
+  while (p != FINGERPRINT_OK && onScreen == KEYPAD) {
     p = finger.getImage();
+    vTaskDelay(20);
     switch (p) {
     case FINGERPRINT_OK:
       Serial.println("Image taken");
@@ -314,16 +308,17 @@ uint8_t getFingerprintEnroll() {
   }
 
   Serial.println("Remove finger");
-  delay(2000);
+  vTaskDelay(20);
   p = 0;
-  while (p != FINGERPRINT_NOFINGER) {
+  while (p != FINGERPRINT_NOFINGER && onScreen == KEYPAD) {
     p = finger.getImage();
   }
-  Serial.print("ID "); Serial.println(fingerprint_id);
+  Serial.print("ID "); Serial.println(fingerprintID);
   p = -1;
   Serial.println("Place same finger again");
-  while (p != FINGERPRINT_OK) {
+  while (p != FINGERPRINT_OK && onScreen == KEYPAD) {
     p = finger.getImage();
+    vTaskDelay(20);
     switch (p) {
     case FINGERPRINT_OK:
       Serial.println("Image taken");
@@ -368,7 +363,7 @@ uint8_t getFingerprintEnroll() {
   }
 
   // OK converted!
-  Serial.print("Creating model for #");  Serial.println(fingerprint_id);
+  Serial.print("Creating model for #");  Serial.println(fingerprintID);
 
   p = finger.createModel();
   if (p == FINGERPRINT_OK) {
@@ -384,8 +379,8 @@ uint8_t getFingerprintEnroll() {
     return p;
   }
 
-  Serial.print("ID "); Serial.println(fingerprint_id);
-  p = finger.storeModel(fingerprint_id);
+  Serial.print("ID "); Serial.println(fingerprintID);
+  p = finger.storeModel(fingerprintID);
   if (p == FINGERPRINT_OK) {
     Serial.println("Stored!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
@@ -405,14 +400,14 @@ uint8_t getFingerprintEnroll() {
   return true;
 }
 
-uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id)
+uint8_t downloadFingerprintTemplate(uint16_t fingerprintID)
 {
   Serial.println("------------------------------------");
-  Serial.print("Attempting to load #"); Serial.println(fingerprint_id);
-  uint8_t p = finger.loadModel(fingerprint_id);
+  Serial.print("Attempting to load #"); Serial.println(fingerprintID);
+  uint8_t p = finger.loadModel(fingerprintID);
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(fingerprint_id); Serial.println(" loaded");
+      Serial.print("Template "); Serial.print(fingerprintID); Serial.println(" loaded");
       break;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
@@ -424,11 +419,11 @@ uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id)
 
   // OK success!
 
-  Serial.print("Attempting to get #"); Serial.println(fingerprint_id);
+  Serial.print("Attempting to get #"); Serial.println(fingerprintID);
   p = finger.getModel();
   switch (p) {
     case FINGERPRINT_OK:
-      Serial.print("Template "); Serial.print(fingerprint_id); Serial.println(" transferring:");
+      Serial.print("Template "); Serial.print(fingerprintID); Serial.println(" transferring:");
       break;
     default:
       Serial.print("Unknown error "); Serial.println(p);
@@ -470,7 +465,7 @@ uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id)
 
   return p;
 
-  
+  /*
     uint8_t templateBuffer[256];
     memset(templateBuffer, 0xff, 256);  //zero out template buffer
     index = 0;
@@ -496,7 +491,7 @@ uint8_t downloadFingerprintTemplate(uint16_t fingerprint_id)
       Serial.print(", ");
     }
     Serial.println();
-    }
+    }*/
 }
 
 void printHex(int num, int precision) {
@@ -507,4 +502,82 @@ void printHex(int num, int precision) {
 
   sprintf(tmp, format, num);
   Serial.print(tmp);
+}
+
+
+/********************************************************************************************************************************************
+                                                         DISPLAY FUNCTIONS               
+*********************************************************************************************************************************************/  
+
+extern TFT_eSPI tft;
+
+// Invoke the TFT_eSPI button class and create all the button objects
+TFT_eSPI_Button key[16]; 
+TFT_eSPI_Button mainkeys[3];
+
+char numberBuffer[NUM_LEN + 1] = "";
+uint8_t numberIndex = 0;
+
+// Create 15 keys for the keypad
+char keyLabel[16][5] = {"1", "2", "3", "New", "4", "5", "6", "Del", "7", "8", "9", "OK", ".", "0", "#", "Back" };
+uint16_t keyColor[16] = {TFT_BLUE, TFT_BLUE, TFT_BLUE, TFT_RED,
+                         TFT_BLUE, TFT_BLUE, TFT_BLUE, TFT_DARKGREY,
+                         TFT_BLUE, TFT_BLUE, TFT_BLUE, TFT_DARKGREEN,
+                         TFT_BLUE, TFT_BLUE, TFT_BLUE, TFT_BLUE
+                        };
+
+char mainMenuKeyLabel[3][7] = {"enroll", "verify", "delete"};
+
+void drawKeypad()
+{
+  onScreen = KEYPAD;
+  tft.fillScreen((TFT_BLACK));
+
+   // Draw keypad background
+  tft.fillRect(0, 200, 320, 280, TFT_DARKGREY);
+
+  // Draw number display area and frame
+  tft.fillRect(DISP_X, DISP_Y, DISP_W, DISP_H, TFT_BLACK);
+  tft.drawRect(DISP_X, DISP_Y, DISP_W, DISP_H, TFT_WHITE);
+
+  // Draw the keys
+  for (uint8_t row = 0; row < 4; row++) {
+    for (uint8_t col = 0; col < 4; col++) {
+      uint8_t b = col + row * 4;
+
+      if (col == 3) tft.setFreeFont(LABEL1_FONT);
+      else tft.setFreeFont(LABEL2_FONT);
+
+      key[b].initButton(&tft, KEY_X + col * (KEY_W + KEY_SPACING_X),
+                        KEY_Y + row * (KEY_H + KEY_SPACING_Y), // x, y, w, h, outline, fill, text
+                        KEY_W, KEY_H, TFT_WHITE, keyColor[b], TFT_WHITE,
+                        keyLabel[b], KEY_TEXTSIZE);
+      key[b].drawButton();
+    }
+  }
+}
+
+void drawMainmenu()
+{
+  onScreen = MAINMENU;
+  tft.fillScreen((TFT_BLACK));
+  status("MAIN MENU", 120, 40);
+  tft.setFreeFont(MAINMENU_FONT);
+  for (uint8_t i = 0; i < 3; i++){
+    mainkeys[i]. initButton(&tft, SCREEN_W / 2 , (SCREEN_H * (i+1)/ 4 ) + 60,
+                            MAINKEY_W, MAINKEY_H, TFT_WHITE, TFT_DARKGREEN, TFT_WHITE,
+                            mainMenuKeyLabel[i], KEY_TEXTSIZE);
+    mainkeys[i].drawButton();
+  }
+}
+
+// Print something in the mini status bar
+void status(const char *msg, int x, int y) {
+  tft.fillRect(0, 0, 320, 80, TFT_BLACK);
+  tft.setTextPadding(240);
+  tft.setTextDatum(TL_DATUM);       
+  tft.setFreeFont(FSS9);  
+  tft.setTextColor(TFT_WHITE);  
+  // Draw the string, the value returned is the width in pixels
+  tft.drawString(msg, x, y);
 }

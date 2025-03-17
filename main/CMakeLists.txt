@@ -3,6 +3,6 @@ idf_component_register(
     INCLUDE_DIRS "." 
     PRIV_REQUIRES golioth_sdk 
                   Adafruit-Fingerprint-Sensor-Library 
-                  tft_espi
+                  tft_espi  
     REQUIRES arduino 
 )
